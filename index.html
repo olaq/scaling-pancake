@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <title>Harmonogram Spłaty Kredytu</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         table, th, td { border: 1px solid black; border-collapse: collapse; padding: 8px; }
         th { background-color: #f2f2f2; }
+        canvas { margin-top: 20px; }
     </style>
 </head>
 <body>
@@ -15,6 +17,7 @@
     <label>Okres (lata): <input type="number" id="years" value="30"></label><br>
     <button onclick="generateSchedule()">Oblicz</button>
     <div id="schedule"></div>
+    <canvas id="paymentChart" width="800" height="400"></canvas>
 
     <script>
         function calculateLoanSchedule(principal, annualRate, years) {
@@ -41,6 +44,37 @@
             return schedule;
         }
 
+        function generateChart(data) {
+            const ctx = document.getElementById('paymentChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(item => item.month),
+                    datasets: [
+                        {
+                            label: 'Odsetki',
+                            data: data.map(item => parseFloat(item.interestPayment)),
+                            borderColor: 'red',
+                            fill: false
+                        },
+                        {
+                            label: 'Kapitał',
+                            data: data.map(item => parseFloat(item.principalPayment)),
+                            borderColor: 'green',
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: 'Kapitał i Odsetki w czasie' }
+                    }
+                }
+            });
+        }
+
         function generateSchedule() {
             const principal = parseFloat(document.getElementById('principal').value);
             const annualRate = parseFloat(document.getElementById('annualRate').value);
@@ -54,6 +88,7 @@
 
             html += '</table>';
             document.getElementById('schedule').innerHTML = html;
+            generateChart(schedule);
         }
     </script>
 </body>
