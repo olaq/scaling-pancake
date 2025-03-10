@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Harmonogram Spłaty Kredytu</title>
+    <style>
+        table, th, td { border: 1px solid black; border-collapse: collapse; padding: 8px; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h2>Harmonogram Spłaty Kredytu</h2>
+    <label>Kwota kredytu: <input type="number" id="principal" value="300000"></label><br>
+    <label>Oprocentowanie roczne (%): <input type="number" id="annualRate" value="5"></label><br>
+    <label>Okres (lata): <input type="number" id="years" value="30"></label><br>
+    <button onclick="generateSchedule()">Oblicz</button>
+    <div id="schedule"></div>
+
+    <script>
+        function calculateLoanSchedule(principal, annualRate, years) {
+            const monthlyRate = annualRate / 12 / 100;
+            const months = years * 12;
+            const annuityFactor = (monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1);
+            const monthlyPayment = principal * annuityFactor;
+            const schedule = [];
+            let remainingPrincipal = principal;
+
+            for (let month = 1; month <= months; month++) {
+                const interestPayment = remainingPrincipal * monthlyRate;
+                const principalPayment = monthlyPayment - interestPayment;
+                remainingPrincipal -= principalPayment;
+                schedule.push({
+                    month,
+                    monthlyPayment: monthlyPayment.toFixed(2),
+                    interestPayment: interestPayment.toFixed(2),
+                    principalPayment: principalPayment.toFixed(2),
+                    remainingPrincipal: remainingPrincipal > 0 ? remainingPrincipal.toFixed(2) : '0.00'
+                });
+            }
+
+            return schedule;
+        }
+
+        function generateSchedule() {
+            const principal = parseFloat(document.getElementById('principal').value);
+            const annualRate = parseFloat(document.getElementById('annualRate').value);
+            const years = parseInt(document.getElementById('years').value);
+            const schedule = calculateLoanSchedule(principal, annualRate, years);
+            let html = '<table><tr><th>Miesiąc</th><th>Rata</th><th>Odsetki</th><th>Kapitał</th><th>Pozostało do spłaty</th></tr>';
+
+            schedule.forEach(item => {
+                html += `<tr><td>${item.month}</td><td>${item.monthlyPayment}</td><td>${item.interestPayment}</td><td>${item.principalPayment}</td><td>${item.remainingPrincipal}</td></tr>`;
+            });
+
+            html += '</table>';
+            document.getElementById('schedule').innerHTML = html;
+        }
+    </script>
+</body>
+</html>
