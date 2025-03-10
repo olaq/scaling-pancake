@@ -3,26 +3,129 @@
 <head>
     <meta charset="UTF-8">
     <title>Harmonogram Spłaty Kredytu</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        table, th, td { border: 1px solid black; border-collapse: collapse; padding: 8px; }
-        th { background-color: #f2f2f2; }
-        canvas { margin-top: 20px; }
+        body { 
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .calculator-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .table-responsive {
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+        }
+        .nav-tabs {
+            margin-bottom: 20px;
+        }
+        .tab-content {
+            padding: 20px 0;
+        }
+        canvas {
+            width: 100% !important;
+        }
     </style>
 </head>
 <body>
-    <h2>Harmonogram Spłaty Kredytu</h2>
-    <label>Kwota kredytu: <input type="number" id="principal" value="300000"></label><br>
-    <label>Oprocentowanie roczne (%): <input type="number" id="annualRate" value="5"></label><br>
-    <label>Okres (lata): <input type="number" id="years" value="30"></label><br>
-    <button onclick="generateSchedule()">Oblicz</button>
-    <div id="schedule"></div>
-    <canvas id="paymentChart" width="800" height="400"></canvas>
+    <div class="calculator-container">
+        <h2 class="mb-4">Harmonogram Spłaty Kredytu</h2>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label class="form-label">Kwota kredytu:</label>
+                    <input type="number" class="form-control" id="principal" value="300000">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label class="form-label">Oprocentowanie roczne (%):</label>
+                    <input type="number" class="form-control" id="annualRate" value="5">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label class="form-label">Okres (miesiące):</label>
+                    <input type="number" class="form-control" id="months" value="360">
+                </div>
+            </div>
+        </div>
 
+        <button class="btn btn-primary mt-3 mb-4" onclick="generateSchedule()">Oblicz</button>
+
+        <div id="summary" class="alert alert-info mb-4" style="display: none;">
+            <div class="row">
+                <div class="col-md-4">
+                    <strong>Całkowity koszt kredytu:</strong>
+                    <div id="totalCost" class="h5 mb-0"></div>
+                </div>
+                <div class="col-md-4">
+                    <strong>Suma odsetek:</strong>
+                    <div id="totalInterest" class="h5 mb-0"></div>
+                </div>
+                <div class="col-md-4">
+                    <strong>Miesięczna rata:</strong>
+                    <div id="monthlyPayment" class="h5 mb-0"></div>
+                </div>
+            </div>
+        </div>
+
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="table-tab" data-bs-toggle="tab" data-bs-target="#table" type="button" role="tab">
+                    Tabela harmonogramu
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="monthly-chart-tab" data-bs-toggle="tab" data-bs-target="#monthly-chart" type="button" role="tab">
+                    Wykres miesięczny
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="cumulative-chart-tab" data-bs-toggle="tab" data-bs-target="#cumulative-chart" type="button" role="tab">
+                    Wykres skumulowany
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="myTabContent">
+            <div class="tab-pane fade show active" id="table" role="tabpanel">
+                <div class="table-responsive" id="schedule"></div>
+            </div>
+            <div class="tab-pane fade" id="monthly-chart" role="tabpanel">
+                <canvas id="monthlyPaymentChart"></canvas>
+            </div>
+            <div class="tab-pane fade" id="cumulative-chart" role="tabpanel">
+                <canvas id="cumulativePaymentChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function calculateLoanSchedule(principal, annualRate, years) {
+        const LOCALE = (navigator.language || navigator.userLanguage || 'pl-PL').startsWith('pl') ? 'pl-PL' : 'pl-PL';
+        
+        const formatCurrency = (value) => {
+            return value.toLocaleString(LOCALE, { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 2 
+            });
+        };
+
+        function calculateLoanSchedule(principal, annualRate, months) {
             const monthlyRate = annualRate / 12 / 100;
-            const months = years * 12;
             const annuityFactor = (monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1);
             const monthlyPayment = principal * annuityFactor;
             const schedule = [];
@@ -34,19 +137,22 @@
                 remainingPrincipal -= principalPayment;
                 schedule.push({
                     month,
-                    monthlyPayment: monthlyPayment.toFixed(2),
-                    interestPayment: interestPayment.toFixed(2),
-                    principalPayment: principalPayment.toFixed(2),
-                    remainingPrincipal: remainingPrincipal > 0 ? remainingPrincipal.toFixed(2) : '0.00'
+                    monthlyPayment: formatCurrency(monthlyPayment),
+                    interestPayment: formatCurrency(interestPayment),
+                    principalPayment: formatCurrency(principalPayment),
+                    remainingPrincipal: remainingPrincipal > 0 ? formatCurrency(remainingPrincipal) : '0,00'
                 });
             }
 
             return schedule;
         }
 
-        function generateChart(data) {
-            const ctx = document.getElementById('paymentChart').getContext('2d');
-            new Chart(ctx, {
+        function generateMonthlyChart(data) {
+            const ctx = document.getElementById('monthlyPaymentChart').getContext('2d');
+            if (window.monthlyChart) {
+                window.monthlyChart.destroy();
+            }
+            window.monthlyChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: data.map(item => item.month),
@@ -54,22 +160,108 @@
                         {
                             label: 'Odsetki',
                             data: data.map(item => parseFloat(item.interestPayment)),
-                            borderColor: 'red',
+                            borderColor: '#dc3545',
+                            backgroundColor: '#dc3545',
                             fill: false
                         },
                         {
                             label: 'Kapitał',
                             data: data.map(item => parseFloat(item.principalPayment)),
-                            borderColor: 'green',
+                            borderColor: '#198754',
+                            backgroundColor: '#198754',
                             fill: false
                         }
                     ]
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: { position: 'top' },
-                        title: { display: true, text: 'Kapitał i Odsetki w czasie' }
+                        title: { 
+                            display: true, 
+                            text: 'Miesięczne raty - podział na kapitał i odsetki',
+                            padding: 20
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: function(value) {
+                                    return formatCurrency(value) + ' zł';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function generateCumulativeChart(data) {
+            const ctx = document.getElementById('cumulativePaymentChart').getContext('2d');
+            
+            let cumulativeInterest = 0;
+            let cumulativePrincipal = 0;
+            const cumulativeData = data.map(item => {
+                cumulativeInterest += parseFloat(item.interestPayment);
+                cumulativePrincipal += parseFloat(item.principalPayment);
+                return {
+                    interest: cumulativeInterest,
+                    principal: cumulativePrincipal,
+                    total: cumulativeInterest + cumulativePrincipal
+                };
+            });
+
+            if (window.cumulativeChart) {
+                window.cumulativeChart.destroy();
+            }
+            window.cumulativeChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(item => item.month),
+                    datasets: [
+                        {
+                            label: 'Suma odsetek',
+                            data: cumulativeData.map(item => item.interest),
+                            borderColor: '#dc3545',
+                            backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                            fill: true
+                        },
+                        {
+                            label: 'Spłacony kapitał',
+                            data: cumulativeData.map(item => item.principal),
+                            borderColor: '#198754',
+                            backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                            fill: true
+                        },
+                        {
+                            label: 'Całkowita spłata',
+                            data: cumulativeData.map(item => item.total),
+                            borderColor: '#0d6efd',
+                            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { 
+                            display: true, 
+                            text: 'Skumulowane koszty kredytu w czasie',
+                            padding: 20
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: function(value) {
+                                    return formatCurrency(value) + ' zł';
+                                }
+                            }
+                        }
                     }
                 }
             });
@@ -78,17 +270,49 @@
         function generateSchedule() {
             const principal = parseFloat(document.getElementById('principal').value);
             const annualRate = parseFloat(document.getElementById('annualRate').value);
-            const years = parseInt(document.getElementById('years').value);
-            const schedule = calculateLoanSchedule(principal, annualRate, years);
-            let html = '<table><tr><th>Miesiąc</th><th>Rata</th><th>Odsetki</th><th>Kapitał</th><th>Pozostało do spłaty</th></tr>';
+            const months = parseInt(document.getElementById('months').value);
+            const schedule = calculateLoanSchedule(principal, annualRate, months);
+            
+            // Calculate totals
+            const totalCost = schedule.reduce((sum, item) => sum + parseFloat(item.monthlyPayment.replace(/\s/g, '').replace(',', '.')), 0);
+            const totalInterest = totalCost - principal;
+            
+            // Update summary section
+            document.getElementById('summary').style.display = 'block';
+            document.getElementById('totalCost').textContent = formatCurrency(totalCost) + ' zł';
+            document.getElementById('totalInterest').textContent = formatCurrency(totalInterest) + ' zł';
+            document.getElementById('monthlyPayment').textContent = schedule[0].monthlyPayment + ' zł';
+
+            let html = `
+                <table class="table table-striped table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Miesiąc</th>
+                            <th>Rata</th>
+                            <th>Odsetki</th>
+                            <th>Kapitał</th>
+                            <th>Pozostało do spłaty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
 
             schedule.forEach(item => {
-                html += `<tr><td>${item.month}</td><td>${item.monthlyPayment}</td><td>${item.interestPayment}</td><td>${item.principalPayment}</td><td>${item.remainingPrincipal}</td></tr>`;
+                html += `
+                    <tr>
+                        <td>${item.month}</td>
+                        <td>${item.monthlyPayment} zł</td>
+                        <td>${item.interestPayment} zł</td>
+                        <td>${item.principalPayment} zł</td>
+                        <td>${item.remainingPrincipal} zł</td>
+                    </tr>
+                `;
             });
 
-            html += '</table>';
+            html += '</tbody></table>';
             document.getElementById('schedule').innerHTML = html;
-            generateChart(schedule);
+            generateMonthlyChart(schedule);
+            generateCumulativeChart(schedule);
         }
     </script>
 </body>
