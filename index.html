@@ -43,22 +43,28 @@
         <h2 class="mb-4">Harmonogram Spłaty Kredytu</h2>
         
         <div class="row">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="form-group">
                     <label class="form-label">Kwota kredytu:</label>
                     <input type="number" class="form-control" id="principal" value="300000">
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="form-group">
                     <label class="form-label">Oprocentowanie roczne (%):</label>
                     <input type="number" class="form-control" id="annualRate" value="5">
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="form-group">
                     <label class="form-label">Okres (miesiące):</label>
                     <input type="number" class="form-control" id="months" value="360">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label class="form-label">Data rozpoczęcia:</label>
+                    <input type="date" class="form-control" id="startDate">
                 </div>
             </div>
         </div>
@@ -124,19 +130,78 @@
             });
         };
 
+        function getDaysInMonth(year, month) {
+            return new Date(year, month, 0).getDate();
+        }
+
         function calculateLoanSchedule(principal, annualRate, months) {
-            const monthlyRate = annualRate / 12 / 100;
-            const annuityFactor = (monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1);
-            const monthlyPayment = principal * annuityFactor;
+            const startDateInput = document.getElementById('startDate').value;
+            const startDate = startDateInput ? new Date(startDateInput) : new Date();
+            // Set the time to beginning of the day to avoid time-based calculation issues
+            startDate.setHours(0, 0, 0, 0);
+            
+            const yearRate = annualRate / 100;
             const schedule = [];
             let remainingPrincipal = principal;
+            
+            // Calculate base monthly payment using standard formula
+            const monthlyRate = yearRate / 12;
+            const annuityFactor = (monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1);
+            const baseMonthlyPayment = principal * annuityFactor;
 
             for (let month = 1; month <= months; month++) {
-                const interestPayment = remainingPrincipal * monthlyRate;
+                const currentDate = new Date(startDate);
+                currentDate.setMonth(startDate.getMonth() + month - 1);
+                
+                // For first month, calculate days from start date to end of month
+                let daysInPeriod;
+                if (month === 1) {
+                    const monthEnd = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+                    monthEnd.setHours(0, 0, 0, 0);
+                    // Add 1 to include both start and end dates
+                    daysInPeriod = Math.round((monthEnd - startDate) / (1000 * 60 * 60 * 24)) + 1;
+                } else {
+                    daysInPeriod = getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth() + 1);
+                }
+                
+                const daysInYear = (currentDate.getFullYear() % 4 === 0 && 
+                    (currentDate.getFullYear() % 100 !== 0 || currentDate.getFullYear() % 400 === 0)) ? 366 : 365;
+                
+                // Calculate daily interest rate and interest for the period
+                const dailyRate = yearRate / daysInYear;
+                const interestPayment = remainingPrincipal * dailyRate * daysInPeriod;
+                
+                // Adjust monthly payment for first partial month
+                let monthlyPayment = baseMonthlyPayment;
+                if (month === 1) {
+                    monthlyPayment = (baseMonthlyPayment / getDaysInMonth(startDate.getFullYear(), startDate.getMonth() + 1)) * daysInPeriod;
+                }
+                
                 const principalPayment = monthlyPayment - interestPayment;
+                
+                // Adjust last payment to account for rounding errors
+                if (month === months) {
+                    const finalPrincipalPayment = remainingPrincipal;
+                    const finalMonthlyPayment = finalPrincipalPayment + interestPayment;
+                    
+                    schedule.push({
+                        month,
+                        date: currentDate,
+                        daysInPeriod,
+                        monthlyPayment: formatCurrency(finalMonthlyPayment),
+                        interestPayment: formatCurrency(interestPayment),
+                        principalPayment: formatCurrency(finalPrincipalPayment),
+                        remainingPrincipal: '0,00'
+                    });
+                    break;
+                }
+
                 remainingPrincipal -= principalPayment;
+                
                 schedule.push({
                     month,
+                    date: currentDate,
+                    daysInPeriod,
                     monthlyPayment: formatCurrency(monthlyPayment),
                     interestPayment: formatCurrency(interestPayment),
                     principalPayment: formatCurrency(principalPayment),
@@ -267,6 +332,15 @@
             });
         }
 
+        function setDefaultStartDate() {
+            const today = new Date();
+            const firstDayNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+            const dateString = firstDayNextMonth.toISOString().split('T')[0];
+            document.getElementById('startDate').value = dateString;
+        }
+
+        setDefaultStartDate();
+
         function generateSchedule() {
             const principal = parseFloat(document.getElementById('principal').value);
             const annualRate = parseFloat(document.getElementById('annualRate').value);
@@ -288,6 +362,8 @@
                     <thead class="table-light">
                         <tr>
                             <th>Miesiąc</th>
+                            <th>Data</th>
+                            <th>Dni w okresie</th>
                             <th>Rata</th>
                             <th>Odsetki</th>
                             <th>Kapitał</th>
@@ -298,9 +374,16 @@
             `;
 
             schedule.forEach(item => {
+                const date = item.date.toLocaleDateString(LOCALE, { 
+                    year: 'numeric', 
+                    month: 'long',
+                    day: 'numeric'
+                });
                 html += `
                     <tr>
                         <td>${item.month}</td>
+                        <td>${date}</td>
+                        <td>${item.daysInPeriod}</td>
                         <td>${item.monthlyPayment} zł</td>
                         <td>${item.interestPayment} zł</td>
                         <td>${item.principalPayment} zł</td>
