@@ -80,6 +80,23 @@
                     </select>
                 </div>
             </div>
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label class="form-label">Rodzaj rat:</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="paymentType" id="equalPayment" value="equal" checked>
+                        <label class="form-check-label" for="equalPayment">
+                            Raty równe
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="paymentType" id="equalPrincipal" value="decreasing">
+                        <label class="form-check-label" for="equalPrincipal">
+                            Raty malejące
+                        </label>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <button class="btn btn-primary mt-3 mb-4" onclick="generateSchedule()">Oblicz</button>
@@ -125,6 +142,11 @@
                     Wykres skumulowany
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="early-payment-tab" data-bs-toggle="tab" data-bs-target="#early-payment" type="button" role="tab">
+                    Symulacja wcześniejszej spłaty
+                </button>
+            </li>
         </ul>
 
         <div class="tab-content" id="myTabContent">
@@ -137,22 +159,99 @@
             <div class="tab-pane fade" id="cumulative-chart" role="tabpanel">
                 <canvas id="cumulativePaymentChart"></canvas>
             </div>
+            <div class="tab-pane fade" id="early-payment" role="tabpanel">
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="form-label">Kwota dodatkowej spłaty:</label>
+                            <input type="number" class="form-control" id="earlyPaymentAmount" value="10000">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="form-label">Data dodatkowej spłaty:</label>
+                            <input type="date" class="form-control" id="earlyPaymentDate">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="form-label">Sposób naliczania odsetek:</label>
+                            <select class="form-control" id="earlyPaymentInterestType">
+                                <option value="principal">Tylko kapitał</option>
+                                <option value="full">Kapitał + odsetki za okres</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <button class="btn btn-primary mb-4" onclick="calculateEarlyPayment()">Przelicz warianty</button>
+                    </div>
+                </div>
+
+                <div id="earlyPaymentResults" style="display: none;">
+                    <div class="alert alert-info mb-4">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>Wariant 1: Skrócenie okresu kredytowania</h5>
+                                <p><strong>Oszczędność na odsetkach:</strong> <span id="shorterTermInterestSavings"></span></p>
+                                <p><strong>Skrócenie okresu o:</strong> <span id="monthsReduced"></span> miesięcy</p>
+                                <p><strong>Nowa data zakończenia:</strong> <span id="newEndDate"></span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Wariant 2: Zmniejszenie raty</h5>
+                                <p><strong>Oszczędność na odsetkach:</strong> <span id="lowerPaymentInterestSavings"></span></p>
+                                <p><strong>Nowa wysokość raty:</strong> <span id="newMonthlyPayment"></span></p>
+                                <p><strong>Zmniejszenie raty o:</strong> <span id="paymentReduction"></span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <ul class="nav nav-pills mb-3" id="earlyPaymentTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#shorterTermSchedule" type="button">
+                                Harmonogram - krótszy okres
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#lowerPaymentSchedule" type="button">
+                                Harmonogram - niższa rata
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="shorterTermSchedule">
+                            <div class="table-responsive" id="shorterTermTable"></div>
+                            <canvas id="shorterTermChart" class="mt-4"></canvas>
+                        </div>
+                        <div class="tab-pane fade" id="lowerPaymentSchedule">
+                            <div class="table-responsive" id="lowerPaymentTable"></div>
+                            <canvas id="lowerPaymentChart" class="mt-4"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="tests.js"></script>
     <script>
         const LOCALE = (navigator.language || navigator.userLanguage || 'pl-PL').startsWith('pl') ? 'pl-PL' : 'pl-PL';
         
-        const formatCurrency = (value) => {
+        // Add this right after the LOCALE constant definition
+        window.shorterTermChart = null;
+        window.lowerPaymentChart = null;
+        window.monthlyChart = null;
+        window.cumulativeChart = null;
+        
+        function formatCurrency(value) {
             return value.toLocaleString(LOCALE, { 
                 minimumFractionDigits: 2, 
                 maximumFractionDigits: 2 
             });
-        };
-
-        function getDaysInMonth(year, month) {
-            return new Date(year, month, 0).getDate();
         }
 
         function calculateLoanSchedule(principal, annualRate, months) {
@@ -167,14 +266,34 @@
             let remainingPrincipalCents = principalCents;
             const schedule = [];
 
-            // Calculate monthly payment in cents
-            const baseMonthlyPaymentCents = Math.round(principal * 
-                ((monthlyRate * Math.pow(1 + monthlyRate, months)) / 
-                (Math.pow(1 + monthlyRate, months) - 1)) * 100);
+            let previousDate = new Date(startDate);
+            let totalPrincipalPaidCents = 0;
+            let totalInterestPaidCents = 0;
+            let totalPaymentsCents = 0;
+
+            const paymentType = document.querySelector('input[name="paymentType"]:checked').value;
+            
+            if (paymentType === 'equal') {
+                return calculateEqualPaymentSchedule(principalCents, yearRate, monthlyRate, months, startDate, paymentDay);
+            } else {
+                return calculateDecreasingPaymentSchedule(principalCents, yearRate, monthlyRate, months, startDate, paymentDay);
+            }
+        }
+
+        function calculateEqualPaymentSchedule(principalCents, yearRate, monthlyRate, months, startDate, paymentDay) {
+            let remainingPrincipalCents = principalCents;
+            const schedule = [];
 
             let previousDate = new Date(startDate);
             let totalPrincipalPaidCents = 0;
-            
+            let totalInterestPaidCents = 0;
+            let totalPaymentsCents = 0;
+
+            // Calculate fixed monthly payment for equal payments (annuity)
+            const baseMonthlyPaymentCents = Math.round(principalCents * 
+                ((monthlyRate * Math.pow(1 + monthlyRate, months)) / 
+                (Math.pow(1 + monthlyRate, months) - 1)));
+
             for (let month = 1; month <= months; month++) {
                 let currentDate;
                 
@@ -186,35 +305,47 @@
                 } else {
                     currentDate = new Date(previousDate.getFullYear(), previousDate.getMonth() + 1, paymentDay);
                 }
-                
-                let daysInPeriod = Math.round((currentDate - previousDate) / (1000 * 60 * 60 * 24));
+
+                const daysInPeriod = Math.round((currentDate - previousDate) / (1000 * 60 * 60 * 24));
                 previousDate = currentDate;
                 
-                const daysInYear = (currentDate.getFullYear() % 4 === 0 && 
-                    (currentDate.getFullYear() % 100 !== 0 || currentDate.getFullYear() % 400 === 0)) ? 366 : 365;
-                
+                const daysInYear = (currentDate.getFullYear() % 4 === 0) ? 366 : 365;
                 const dailyRate = yearRate / daysInYear;
                 const interestPaymentCents = Math.round(remainingPrincipalCents * dailyRate * daysInPeriod);
                 
-                let monthlyPaymentCents, principalPaymentCents;
-                
+                let monthlyPaymentCents;
+                let principalPaymentCents;
+
+                // Calculate remaining months for this payment
+                const remainingMonths = months - month + 1;
+
                 if (month === 1) {
-                    // For first payment, prorate based on days
+                    // First payment - adjust for partial month
                     monthlyPaymentCents = Math.round(baseMonthlyPaymentCents * (daysInPeriod / 30));
-                    principalPaymentCents = monthlyPaymentCents - interestPaymentCents;
-                } else if (month === months) {
-                    // For last payment, pay remaining principal
+                } else if (month === months || remainingPrincipalCents <= baseMonthlyPaymentCents) {
+                    // Last payment or small remaining amount - pay exactly what's left
+                    monthlyPaymentCents = remainingPrincipalCents + interestPaymentCents;
+                } else {
+                    // Regular payment - recalculate based on remaining balance and months
+                    monthlyPaymentCents = Math.round(remainingPrincipalCents * 
+                        ((monthlyRate * Math.pow(1 + monthlyRate, remainingMonths)) / 
+                        (Math.pow(1 + monthlyRate, remainingMonths) - 1)));
+                }
+
+                // Calculate principal portion
+                principalPaymentCents = monthlyPaymentCents - interestPaymentCents;
+
+                // Ensure we don't overpay
+                if (principalPaymentCents > remainingPrincipalCents) {
                     principalPaymentCents = remainingPrincipalCents;
                     monthlyPaymentCents = principalPaymentCents + interestPaymentCents;
-                } else {
-                    // For regular payments
-                    monthlyPaymentCents = baseMonthlyPaymentCents;
-                    principalPaymentCents = monthlyPaymentCents - interestPaymentCents;
                 }
 
                 totalPrincipalPaidCents += principalPaymentCents;
+                totalInterestPaidCents += interestPaymentCents;
+                totalPaymentsCents += monthlyPaymentCents;
                 remainingPrincipalCents = principalCents - totalPrincipalPaidCents;
-                
+
                 schedule.push({
                     month,
                     date: currentDate,
@@ -225,9 +356,103 @@
                     principalPayment: formatCurrency(principalPaymentCents / 100),
                     remainingPrincipal: formatCurrency(remainingPrincipalCents / 100)
                 });
+
+                if (remainingPrincipalCents <= 0) break;
             }
 
-            return schedule;
+            return {
+                schedule,
+                totals: {
+                    principalCents: totalPrincipalPaidCents,
+                    interestCents: totalInterestPaidCents,
+                    paymentsCents: totalPaymentsCents
+                }
+            };
+        }
+
+        function calculateDecreasingPaymentSchedule(principalCents, yearRate, monthlyRate, months, startDate, paymentDay) {
+            let remainingPrincipalCents = principalCents;
+            const schedule = [];
+
+            let previousDate = new Date(startDate);
+            let totalPrincipalPaidCents = 0;
+            let totalInterestPaidCents = 0;
+            let totalPaymentsCents = 0;
+
+            // Calculate base monthly principal payment
+            const baseMonthlyPrincipalCents = Math.round(principalCents / months);
+
+            for (let month = 1; month <= months; month++) {
+                let currentDate;
+                
+                if (month === 1) {
+                    currentDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, paymentDay);
+                    if (currentDate <= startDate) {
+                        currentDate = new Date(startDate.getFullYear(), startDate.getMonth() + 2, paymentDay);
+                    }
+                } else {
+                    currentDate = new Date(previousDate.getFullYear(), previousDate.getMonth() + 1, paymentDay);
+                }
+
+                const daysInPeriod = Math.round((currentDate - previousDate) / (1000 * 60 * 60 * 24));
+                previousDate = currentDate;
+                
+                const daysInYear = (currentDate.getFullYear() % 4 === 0) ? 366 : 365;
+                const dailyRate = yearRate / daysInYear;
+                const interestPaymentCents = Math.round(remainingPrincipalCents * dailyRate * daysInPeriod);
+                
+                let monthlyPaymentCents;
+                let principalPaymentCents;
+
+                if (month === 1) {
+                    // First payment - adjust for partial month
+                    principalPaymentCents = Math.round(baseMonthlyPrincipalCents * (daysInPeriod / 30));
+                } else if (month === months) {
+                    // Last payment - pay exactly what's remaining
+                    principalPaymentCents = remainingPrincipalCents;
+                } else {
+                    // Regular payment - fixed principal amount
+                    principalPaymentCents = baseMonthlyPrincipalCents;
+                }
+
+                monthlyPaymentCents = principalPaymentCents + interestPaymentCents;
+
+                totalPrincipalPaidCents += principalPaymentCents;
+                totalInterestPaidCents += interestPaymentCents;
+                totalPaymentsCents += monthlyPaymentCents;
+                remainingPrincipalCents = principalCents - totalPrincipalPaidCents;
+
+                schedule.push({
+                    month,
+                    date: currentDate,
+                    daysInPeriod,
+                    dailyInterest: formatCurrency((remainingPrincipalCents * dailyRate) / 100),
+                    monthlyPayment: formatCurrency(monthlyPaymentCents / 100),
+                    interestPayment: formatCurrency(interestPaymentCents / 100),
+                    principalPayment: formatCurrency(principalPaymentCents / 100),
+                    remainingPrincipal: formatCurrency(remainingPrincipalCents / 100)
+                });
+
+                if (remainingPrincipalCents <= 0) break;
+            }
+
+            // Final validation
+            if (Math.abs(totalPrincipalPaidCents - principalCents) > 1) {
+                console.warn('Principal mismatch detected:', {
+                    totalPaid: formatCurrency(totalPrincipalPaidCents / 100),
+                    originalPrincipal: formatCurrency(principalCents / 100),
+                    difference: formatCurrency((principalCents - totalPrincipalPaidCents) / 100)
+                });
+            }
+
+            return {
+                schedule,
+                totals: {
+                    principalCents: totalPrincipalPaidCents,
+                    interestCents: totalInterestPaidCents,
+                    paymentsCents: totalPaymentsCents
+                }
+            };
         }
 
         function generateMonthlyChart(data) {
@@ -236,39 +461,36 @@
                 window.monthlyChart.destroy();
             }
             window.monthlyChart = new Chart(ctx, {
-                type: 'line',
+                type: 'bar',
                 data: {
                     labels: data.map(item => item.month),
                     datasets: [
                         {
                             label: 'Odsetki',
-                            data: data.map(item => parseFloat(item.interestPayment)),
-                            borderColor: '#dc3545',
-                            backgroundColor: '#dc3545',
-                            fill: false
+                            data: data.map(item => parseFloat(item.interestPayment.replace(/\s/g, '').replace(',', '.'))),
+                            backgroundColor: '#dc3545'
                         },
                         {
                             label: 'Kapitał',
-                            data: data.map(item => parseFloat(item.principalPayment)),
-                            borderColor: '#198754',
-                            backgroundColor: '#198754',
-                            fill: false
+                            data: data.map(item => parseFloat(item.principalPayment.replace(/\s/g, '').replace(',', '.'))),
+                            backgroundColor: '#198754'
                         }
                     ]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'top' },
-                        title: { 
-                            display: true, 
-                            text: 'Miesięczne raty - podział na kapitał i odsetki',
-                            padding: 20
+                        title: {
+                            display: true,
+                            text: 'Struktura raty w czasie'
                         }
                     },
                     scales: {
+                        x: {
+                            stacked: true
+                        },
                         y: {
+                            stacked: true,
                             ticks: {
                                 callback: function(value) {
                                     return formatCurrency(value) + ' zł';
@@ -282,16 +504,15 @@
 
         function generateCumulativeChart(data) {
             const ctx = document.getElementById('cumulativePaymentChart').getContext('2d');
-            
             let cumulativeInterest = 0;
             let cumulativePrincipal = 0;
+            
             const cumulativeData = data.map(item => {
-                cumulativeInterest += parseFloat(item.interestPayment);
-                cumulativePrincipal += parseFloat(item.principalPayment);
+                cumulativeInterest += parseFloat(item.interestPayment.replace(/\s/g, '').replace(',', '.'));
+                cumulativePrincipal += parseFloat(item.principalPayment.replace(/\s/g, '').replace(',', '.'));
                 return {
                     interest: cumulativeInterest,
-                    principal: cumulativePrincipal,
-                    total: cumulativeInterest + cumulativePrincipal
+                    principal: cumulativePrincipal
                 };
             });
 
@@ -304,37 +525,27 @@
                     labels: data.map(item => item.month),
                     datasets: [
                         {
-                            label: 'Suma odsetek',
+                            label: 'Spłacone odsetki',
                             data: cumulativeData.map(item => item.interest),
                             borderColor: '#dc3545',
-                            backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                            fill: true
+                            backgroundColor: '#dc3545',
+                            fill: false
                         },
                         {
                             label: 'Spłacony kapitał',
                             data: cumulativeData.map(item => item.principal),
                             borderColor: '#198754',
-                            backgroundColor: 'rgba(25, 135, 84, 0.1)',
-                            fill: true
-                        },
-                        {
-                            label: 'Całkowita spłata',
-                            data: cumulativeData.map(item => item.total),
-                            borderColor: '#0d6efd',
-                            backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                            fill: true
+                            backgroundColor: '#198754',
+                            fill: false
                         }
                     ]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'top' },
-                        title: { 
-                            display: true, 
-                            text: 'Skumulowane koszty kredytu w czasie',
-                            padding: 20
+                        title: {
+                            display: true,
+                            text: 'Suma spłat w czasie'
                         }
                     },
                     scales: {
@@ -350,70 +561,23 @@
             });
         }
 
-        function setDefaultStartDate() {
-            const today = new Date();
-            const firstDayNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-            const dateString = firstDayNextMonth.toISOString().split('T')[0];
-            document.getElementById('startDate').value = dateString;
-        }
-
-        setDefaultStartDate();
-
         function generateSchedule() {
             const principal = parseFloat(document.getElementById('principal').value);
             const annualRate = parseFloat(document.getElementById('annualRate').value);
             const months = parseInt(document.getElementById('months').value);
-            
-            // Calculate base monthly payment
-            const monthlyRate = (annualRate / 100) / 12;
-            const baseMonthlyPayment = principal * 
-                ((monthlyRate * Math.pow(1 + monthlyRate, months)) / 
-                (Math.pow(1 + monthlyRate, months) - 1));
-            
-            const schedule = calculateLoanSchedule(principal, annualRate, months);
-            
-            // Calculate actual totals from schedule
-            let totalMonthlyPayments = 0;
-            let totalInterestPayments = 0;
-            let totalPrincipalPayments = 0;
 
-            schedule.forEach(item => {
-                totalMonthlyPayments += parseFloat(item.monthlyPayment.replace(/\s/g, '').replace(',', '.'));
-                totalInterestPayments += parseFloat(item.interestPayment.replace(/\s/g, '').replace(',', '.'));
-                totalPrincipalPayments += parseFloat(item.principalPayment.replace(/\s/g, '').replace(',', '.'));
-            });
-
-            // Calculate expected totals
-            const expectedTotalPayments = baseMonthlyPayment * months;
-            const expectedTotalInterest = expectedTotalPayments - principal;
-
-            // Add validation messages if totals don't match
-            const tolerance = 0.01; // 1 cent tolerance for rounding differences
-            const validationMessages = [];
+            const result = calculateLoanSchedule(principal, annualRate, months);
+            const schedule = result.schedule;
             
-            if (Math.abs(totalPrincipalPayments - principal) > tolerance) {
-                validationMessages.push(`Total principal mismatch: ${formatCurrency(totalPrincipalPayments)} vs expected ${formatCurrency(principal)}`);
-            }
-            if (Math.abs(totalMonthlyPayments - expectedTotalPayments) > tolerance) {
-                validationMessages.push(`Total payments mismatch: ${formatCurrency(totalMonthlyPayments)} vs expected ${formatCurrency(expectedTotalPayments)}`);
-            }
-            if (Math.abs(totalInterestPayments - expectedTotalInterest) > tolerance) {
-                validationMessages.push(`Total interest mismatch: ${formatCurrency(totalInterestPayments)} vs expected ${formatCurrency(expectedTotalInterest)}`);
-            }
-
-            if (validationMessages.length > 0) {
-                console.warn('Schedule validation failed:');
-                validationMessages.forEach(msg => console.warn(msg));
-            }
-            
-            // Update summary section
+            // Display summary
             document.getElementById('summary').style.display = 'block';
-            document.getElementById('totalCost').textContent = formatCurrency(totalMonthlyPayments) + ' zł';
-            document.getElementById('totalInterest').textContent = formatCurrency(totalInterestPayments) + ' zł';
-            document.getElementById('regularPayment').textContent = formatCurrency(baseMonthlyPayment) + ' zł';
+            document.getElementById('totalCost').textContent = formatCurrency(result.totals.paymentsCents / 100) + ' zł';
+            document.getElementById('totalInterest').textContent = formatCurrency(result.totals.interestCents / 100) + ' zł';
+            document.getElementById('regularPayment').textContent = schedule[1].monthlyPayment + ' zł';
             document.getElementById('firstPayment').textContent = schedule[0].monthlyPayment + ' zł';
             document.getElementById('lastPayment').textContent = schedule[schedule.length - 1].monthlyPayment + ' zł';
 
+            // Generate table
             let html = `
                 <table class="table table-striped table-hover">
                     <thead class="table-light">
@@ -431,7 +595,21 @@
                     <tbody>
             `;
 
+            let totalMonthlyPayment = 0;
+            let totalInterest = 0;
+            let totalPrincipal = 0;
+
             schedule.forEach(item => {
+                // Parse values directly from the formatted strings
+                const monthlyPayment = parseFloat(item.monthlyPayment.replace(/\s/g, '').replace(',', '.'));
+                const interestPayment = parseFloat(item.interestPayment.replace(/\s/g, '').replace(',', '.'));
+                const principalPayment = parseFloat(item.principalPayment.replace(/\s/g, '').replace(',', '.'));
+
+                // Add to totals
+                totalMonthlyPayment += monthlyPayment;
+                totalInterest += interestPayment;
+                totalPrincipal += principalPayment;
+
                 const date = item.date.toLocaleDateString(LOCALE, { 
                     year: 'numeric', 
                     month: 'long',
@@ -451,22 +629,415 @@
                 `;
             });
 
-            // Add totals row
+            // Add validation check
+            console.log('Table totals validation:');
+            console.log('Total Monthly Payments:', formatCurrency(totalMonthlyPayment));
+            console.log('Total Interest:', formatCurrency(totalInterest));
+            console.log('Total Principal:', formatCurrency(totalPrincipal));
+            console.log('Sum of Interest + Principal:', formatCurrency(totalInterest + totalPrincipal));
+
+            // Add summary row (only once)
             html += `
                 <tr class="table-info fw-bold">
                     <td colspan="3">SUMA</td>
-                    <td>${formatCurrency(totalMonthlyPayments)} zł</td>
-                    <td>${formatCurrency(totalInterestPayments)} zł</td>
-                    <td>${formatCurrency(totalPrincipalPayments)} zł</td>
-                    <td></td>
+                    <td>${formatCurrency(totalMonthlyPayment)} zł</td>
+                    <td>${formatCurrency(totalInterest)} zł</td>
+                    <td>${formatCurrency(totalPrincipal)} zł</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+            `;
+
+            // Add validation check
+            const tolerance = 0.01; // 1 cent tolerance
+            if (Math.abs(totalPrincipal - principal) > tolerance) {
+                html += `
+                    <div class="alert alert-danger mt-3">
+                        <strong>Błąd walidacji:</strong> Suma spłaconego kapitału (${formatCurrency(totalPrincipal)} zł) 
+                        nie zgadza się z kwotą kredytu (${formatCurrency(principal)} zł).
+                        Różnica: ${formatCurrency(Math.abs(principal - totalPrincipal))} zł
+                    </div>
+                `;
+            }
+
+            html += '</tbody></table>';
+            document.getElementById('schedule').innerHTML = html;
+            
+            generateMonthlyChart(schedule);
+            generateCumulativeChart(schedule);
+        }
+
+        // Add these before the initialization calls
+        function setDefaultStartDate() {
+            const today = new Date();
+            const firstDayNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+            const dateString = firstDayNextMonth.toISOString().split('T')[0];
+            document.getElementById('startDate').value = dateString;
+        }
+
+        function setDefaultEarlyPaymentDate() {
+            const today = new Date();
+            const threeMonthsFromNow = new Date(today.getFullYear(), today.getMonth() + 3, 1);
+            const dateString = threeMonthsFromNow.toISOString().split('T')[0];
+            document.getElementById('earlyPaymentDate').value = dateString;
+        }
+
+        // Initialize dates
+        setDefaultStartDate();
+        setDefaultEarlyPaymentDate();
+
+        function calculateEarlyPayment() {
+            const principal = parseFloat(document.getElementById('principal').value);
+            const startDate = new Date(document.getElementById('startDate').value);
+            const earlyPaymentDate = new Date(document.getElementById('earlyPaymentDate').value);
+            
+            if (!document.getElementById('earlyPaymentDate').value) {
+                alert('Proszę wybrać datę wcześniejszej spłaty');
+                return;
+            }
+            
+            if (earlyPaymentDate <= startDate) {
+                alert('Data wcześniejszej spłaty musi być późniejsza niż data rozpoczęcia kredytu');
+                return;
+            }
+
+            const annualRate = parseFloat(document.getElementById('annualRate').value);
+            const months = parseInt(document.getElementById('months').value);
+            const earlyPaymentAmount = parseFloat(document.getElementById('earlyPaymentAmount').value);
+            const interestType = document.getElementById('earlyPaymentInterestType').value;
+
+            // Get original schedule
+            const originalSchedule = calculateLoanSchedule(principal, annualRate, months);
+
+            // Calculate schedules with early payment
+            const shorterTermSchedule = calculateScheduleWithEarlyPayment(
+                principal, annualRate, months, earlyPaymentAmount, earlyPaymentDate, interestType, false
+            );
+            
+            const lowerPaymentSchedule = calculateScheduleWithEarlyPayment(
+                principal, annualRate, months, earlyPaymentAmount, earlyPaymentDate, interestType, true
+            );
+
+            // Show results
+            document.getElementById('earlyPaymentResults').style.display = 'block';
+            
+            // Calculate and display savings
+            const originalTotalInterest = calculateTotalInterest(originalSchedule);
+            const shorterTermTotalInterest = calculateTotalInterest(shorterTermSchedule);
+            const lowerPaymentTotalInterest = calculateTotalInterest(lowerPaymentSchedule);
+
+            document.getElementById('shorterTermInterestSavings').textContent = 
+                formatCurrency(originalTotalInterest - shorterTermTotalInterest) + ' zł';
+            document.getElementById('lowerPaymentInterestSavings').textContent = 
+                formatCurrency(originalTotalInterest - lowerPaymentTotalInterest) + ' zł';
+            
+            document.getElementById('monthsReduced').textContent = 
+                originalSchedule.length - shorterTermSchedule.length;
+            document.getElementById('newEndDate').textContent = 
+                shorterTermSchedule[shorterTermSchedule.length - 1].date.toLocaleDateString('pl-PL');
+            
+            const originalMonthlyPayment = parseFloat(originalSchedule[1].monthlyPayment.replace(/\s/g, '').replace(',', '.'));
+            const newMonthlyPayment = parseFloat(lowerPaymentSchedule[lowerPaymentSchedule.length - 1].monthlyPayment.replace(/\s/g, '').replace(',', '.'));
+            
+            document.getElementById('newMonthlyPayment').textContent = formatCurrency(newMonthlyPayment) + ' zł';
+            document.getElementById('paymentReduction').textContent = formatCurrency(originalMonthlyPayment - newMonthlyPayment) + ' zł';
+
+            // Display schedules
+            displayScheduleComparison('shorterTermTable', originalSchedule, shorterTermSchedule, principal);
+            displayScheduleComparison('lowerPaymentTable', originalSchedule, lowerPaymentSchedule, principal);
+
+            // Update charts
+            updateComparisonCharts(originalSchedule, shorterTermSchedule, lowerPaymentSchedule);
+
+            const remainingPrincipal = parseFloat(originalSchedule.find(payment => 
+                payment.date >= earlyPaymentDate)?.remainingPrincipal.replace(/\s/g, '').replace(',', '.')) || 0;
+
+            if (earlyPaymentAmount <= 0) {
+                alert('Kwota wcześniejszej spłaty musi być większa niż 0');
+                return;
+            }
+
+            if (earlyPaymentAmount >= remainingPrincipal) {
+                alert('Kwota wcześniejszej spłaty nie może być większa niż pozostały kapitał do spłaty');
+                return;
+            }
+        }
+
+        function calculateScheduleWithEarlyPayment(principal, annualRate, months, earlyPaymentAmount, earlyPaymentDate, interestType, keepTerm) {
+            const principalCents = Math.round(principal * 100);
+            const startDateInput = document.getElementById('startDate').value;
+            const startDate = startDateInput ? new Date(startDateInput) : new Date();
+            startDate.setHours(0, 0, 0, 0);
+            
+            const paymentDay = parseInt(document.getElementById('paymentDay').value);
+            const yearRate = annualRate / 100;
+            const monthlyRate = yearRate / 12;
+            let remainingPrincipalCents = principalCents;
+            const schedule = [];
+
+            // Calculate base monthly payment in cents
+            const baseMonthlyPaymentCents = Math.round(principalCents * 
+                ((monthlyRate * Math.pow(1 + monthlyRate, months)) / 
+                (Math.pow(1 + monthlyRate, months) - 1)));
+
+            let previousDate = new Date(startDate);
+            let totalPrincipalPaidCents = 0;
+            let earlyPaymentApplied = false;
+            let newMonthlyPaymentCents = baseMonthlyPaymentCents;
+
+            for (let month = 1; month <= months; month++) {
+                let currentDate;
+                
+                if (month === 1) {
+                    currentDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, paymentDay);
+                    if (currentDate <= startDate) {
+                        currentDate = new Date(startDate.getFullYear(), startDate.getMonth() + 2, paymentDay);
+                    }
+                } else {
+                    currentDate = new Date(previousDate.getFullYear(), previousDate.getMonth() + 1, paymentDay);
+                }
+
+                // Check if early payment should be applied
+                if (!earlyPaymentApplied && currentDate >= earlyPaymentDate) {
+                    earlyPaymentApplied = true;
+                    const earlyPaymentCents = Math.round(earlyPaymentAmount * 100);
+                    
+                    if (interestType === 'full') {
+                        // Calculate interest for partial period
+                        const daysToEarlyPayment = Math.round((earlyPaymentDate - previousDate) / (1000 * 60 * 60 * 24));
+                        const daysInYear = (earlyPaymentDate.getFullYear() % 4 === 0) ? 366 : 365;
+                        const additionalInterestCents = Math.round(remainingPrincipalCents * (yearRate / daysInYear) * daysToEarlyPayment);
+                        remainingPrincipalCents -= (earlyPaymentCents - additionalInterestCents);
+                    } else {
+                        remainingPrincipalCents -= earlyPaymentCents;
+                    }
+
+                    if (keepTerm) {
+                        // Recalculate monthly payment for remaining term
+                        const remainingMonths = months - month + 1;
+                        newMonthlyPaymentCents = Math.round((remainingPrincipalCents / 100) * 
+                            ((monthlyRate * Math.pow(1 + monthlyRate, remainingMonths)) / 
+                            (Math.pow(1 + monthlyRate, remainingMonths) - 1)) * 100);
+                    }
+                }
+
+                let daysInPeriod = Math.round((currentDate - previousDate) / (1000 * 60 * 60 * 24));
+                previousDate = currentDate;
+                
+                const daysInYear = (currentDate.getFullYear() % 4 === 0) ? 366 : 365;
+                const dailyRate = yearRate / daysInYear;
+                const interestPaymentCents = Math.round(remainingPrincipalCents * dailyRate * daysInPeriod);
+                
+                let monthlyPaymentCents = newMonthlyPaymentCents;
+                let principalPaymentCents;
+
+                if (remainingPrincipalCents <= 0) {
+                    break; // End schedule if loan is fully paid
+                }
+
+                if (month === 1) {
+                    monthlyPaymentCents = Math.round(monthlyPaymentCents * (daysInPeriod / 30));
+                    principalPaymentCents = monthlyPaymentCents - interestPaymentCents;
+                } else if (remainingPrincipalCents <= monthlyPaymentCents) {
+                    principalPaymentCents = remainingPrincipalCents;
+                    monthlyPaymentCents = principalPaymentCents + interestPaymentCents;
+                } else {
+                    principalPaymentCents = monthlyPaymentCents - interestPaymentCents;
+                }
+
+                totalPrincipalPaidCents += principalPaymentCents;
+                remainingPrincipalCents = principalCents - totalPrincipalPaidCents;
+
+                schedule.push({
+                    month,
+                    date: currentDate,
+                    daysInPeriod,
+                    dailyInterest: formatCurrency((remainingPrincipalCents * dailyRate) / 100),
+                    monthlyPayment: formatCurrency(monthlyPaymentCents / 100),
+                    interestPayment: formatCurrency(interestPaymentCents / 100),
+                    principalPayment: formatCurrency(principalPaymentCents / 100),
+                    remainingPrincipal: formatCurrency(remainingPrincipalCents / 100)
+                });
+            }
+
+            return schedule;
+        }
+
+        function calculateTotalInterest(schedule) {
+            return schedule.reduce((sum, payment) => 
+                sum + parseFloat(payment.interestPayment.replace(/\s/g, '').replace(',', '.')), 0);
+        }
+
+        function displayScheduleComparison(tableId, originalSchedule, newSchedule, principal) {
+            let html = `
+                <table class="table table-striped table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Miesiąc</th>
+                            <th>Data</th>
+                            <th>Rata</th>
+                            <th>Odsetki</th>
+                            <th>Kapitał</th>
+                            <th>Pozostało do spłaty</th>
+                            <th>Różnica w racie</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (let i = 0; i < Math.max(originalSchedule.length, newSchedule.length); i++) {
+                const original = originalSchedule[i];
+                const modified = newSchedule[i];
+
+                if (modified) {
+                    const originalPayment = original ? parseFloat(original.monthlyPayment.replace(/\s/g, '').replace(',', '.')) : 0;
+                    const modifiedPayment = parseFloat(modified.monthlyPayment.replace(/\s/g, '').replace(',', '.'));
+                    const difference = originalPayment - modifiedPayment;
+
+                    const date = modified.date.toLocaleDateString(LOCALE, {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+
+                    html += `
+                        <tr>
+                            <td>${modified.month}</td>
+                            <td>${date}</td>
+                            <td>${modified.monthlyPayment} zł</td>
+                            <td>${modified.interestPayment} zł</td>
+                            <td>${modified.principalPayment} zł</td>
+                            <td>${modified.remainingPrincipal} zł</td>
+                            <td class="${difference > 0 ? 'text-success' : 'text-danger'}">
+                                ${formatCurrency(Math.abs(difference))} zł
+                            </td>
+                        </tr>
+                    `;
+                }
+            }
+
+            // Add summary row
+            const totalOriginalPayments = originalSchedule.reduce((sum, payment) => 
+                sum + parseFloat(payment.monthlyPayment.replace(/\s/g, '').replace(',', '.')), 0);
+            const totalModifiedPayments = newSchedule.reduce((sum, payment) => 
+                sum + parseFloat(payment.monthlyPayment.replace(/\s/g, '').replace(',', '.')), 0);
+            const totalDifference = totalOriginalPayments - totalModifiedPayments;
+
+            html += `
+                <tr class="table-info fw-bold">
+                    <td colspan="2">SUMA</td>
+                    <td>${formatCurrency(totalModifiedPayments)} zł</td>
+                    <td>${formatCurrency(calculateTotalInterest(newSchedule))} zł</td>
+                    <td>${formatCurrency(principal)} zł</td>
+                    <td>-</td>
+                    <td class="${totalDifference > 0 ? 'text-success' : 'text-danger'}">
+                        ${formatCurrency(Math.abs(totalDifference))} zł
+                    </td>
                 </tr>
             `;
 
             html += '</tbody></table>';
-            document.getElementById('schedule').innerHTML = html;
-            generateMonthlyChart(schedule);
-            generateCumulativeChart(schedule);
+            document.getElementById(tableId).innerHTML = html;
         }
+
+        function updateComparisonCharts(originalSchedule, shorterTermSchedule, lowerPaymentSchedule) {
+            // Update shorter term chart
+            const shorterTermCtx = document.getElementById('shorterTermChart').getContext('2d');
+            if (window.shorterTermChart instanceof Chart) {
+                window.shorterTermChart.destroy();
+            }
+            window.shorterTermChart = new Chart(shorterTermCtx, {
+                type: 'line',
+                data: {
+                    labels: shorterTermSchedule.map(item => item.month),
+                    datasets: [
+                        {
+                            label: 'Oryginalna rata',
+                            data: originalSchedule.map(item => parseFloat(item.monthlyPayment.replace(/\s/g, '').replace(',', '.'))),
+                            borderColor: '#6c757d',
+                            backgroundColor: '#6c757d',
+                            fill: false
+                        },
+                        {
+                            label: 'Nowa rata',
+                            data: shorterTermSchedule.map(item => parseFloat(item.monthlyPayment.replace(/\s/g, '').replace(',', '.'))),
+                            borderColor: '#198754',
+                            backgroundColor: '#198754',
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Porównanie rat - wariant z krótszym okresem'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: function(value) {
+                                    return formatCurrency(value) + ' zł';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Update lower payment chart
+            const lowerPaymentCtx = document.getElementById('lowerPaymentChart').getContext('2d');
+            if (window.lowerPaymentChart instanceof Chart) {
+                window.lowerPaymentChart.destroy();
+            }
+            window.lowerPaymentChart = new Chart(lowerPaymentCtx, {
+                type: 'line',
+                data: {
+                    labels: lowerPaymentSchedule.map(item => item.month),
+                    datasets: [
+                        {
+                            label: 'Oryginalna rata',
+                            data: originalSchedule.map(item => parseFloat(item.monthlyPayment.replace(/\s/g, '').replace(',', '.'))),
+                            borderColor: '#6c757d',
+                            backgroundColor: '#6c757d',
+                            fill: false
+                        },
+                        {
+                            label: 'Nowa rata',
+                            data: lowerPaymentSchedule.map(item => parseFloat(item.monthlyPayment.replace(/\s/g, '').replace(',', '.'))),
+                            borderColor: '#0d6efd',
+                            backgroundColor: '#0d6efd',
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Porównanie rat - wariant z niższą ratą'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: function(value) {
+                                    return formatCurrency(value) + ' zł';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Run tests on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            runTests();
+        });
     </script>
 </body>
 </html>
