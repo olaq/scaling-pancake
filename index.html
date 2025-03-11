@@ -219,6 +219,7 @@
                     month,
                     date: currentDate,
                     daysInPeriod,
+                    dailyInterest: formatCurrency((remainingPrincipalCents * dailyRate) / 100),
                     monthlyPayment: formatCurrency(monthlyPaymentCents / 100),
                     interestPayment: formatCurrency(interestPaymentCents / 100),
                     principalPayment: formatCurrency(principalPaymentCents / 100),
@@ -423,6 +424,7 @@
                             <th>Rata</th>
                             <th>Odsetki</th>
                             <th>Kapitał</th>
+                            <th>Odsetki dzienne</th>
                             <th>Pozostało do spłaty</th>
                         </tr>
                     </thead>
@@ -443,6 +445,7 @@
                         <td>${item.monthlyPayment} zł</td>
                         <td>${item.interestPayment} zł</td>
                         <td>${item.principalPayment} zł</td>
+                        <td>${item.dailyInterest} zł</td>
                         <td>${item.remainingPrincipal} zł</td>
                     </tr>
                 `;
