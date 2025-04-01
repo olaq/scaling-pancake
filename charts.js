@@ -19,12 +19,14 @@ class LoanCharts {
                     {
                         label: 'Odsetki',
                         data: data.map(item => parseFloat(item.interestPayment.replace(/\s/g, '').replace(',', '.'))),
-                        backgroundColor: '#dc3545'
+                        backgroundColor: '#dc3545',
+                        borderRadius: 10 // Rounded corners
                     },
                     {
                         label: 'Kapitał',
                         data: data.map(item => parseFloat(item.principalPayment.replace(/\s/g, '').replace(',', '.'))),
-                        backgroundColor: '#198754'
+                        backgroundColor: '#198754',
+                        borderRadius: 10 // Rounded corners
                     }
                 ]
             },
@@ -34,6 +36,32 @@ class LoanCharts {
                     title: {
                         display: true,
                         text: 'Struktura raty w czasie'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                label += context.raw.toLocaleString('pl-PL', { 
+                                    minimumFractionDigits: 2, 
+                                    maximumFractionDigits: 2 
+                                }) + ' zł';
+                                return label;
+                            }
+                        }
+                    },
+                    datalabels: {
+                        display: true,
+                        align: 'end',
+                        anchor: 'end',
+                        formatter: function(value) {
+                            return value.toLocaleString('pl-PL', { 
+                                minimumFractionDigits: 2, 
+                                maximumFractionDigits: 2 
+                            }) + ' zł';
+                        }
                     }
                 },
                 scales: {
@@ -51,6 +79,10 @@ class LoanCharts {
                             }
                         }
                     }
+                },
+                animation: {
+                    duration: 1000, // Subtle animation
+                    easing: 'easeInOutQuad'
                 }
             }
         });
@@ -83,14 +115,36 @@ class LoanCharts {
                         data: cumulativeData.map(item => item.interest),
                         borderColor: '#dc3545',
                         backgroundColor: '#dc3545',
-                        fill: false
+                        fill: false,
+                        datalabels: {
+                            display: true,
+                            align: 'end',
+                            anchor: 'end',
+                            formatter: function(value) {
+                                return value.toLocaleString('pl-PL', { 
+                                    minimumFractionDigits: 2, 
+                                    maximumFractionDigits: 2 
+                                }) + ' zł';
+                            }
+                        }
                     },
                     {
                         label: 'Spłacony kapitał',
                         data: cumulativeData.map(item => item.principal),
                         borderColor: '#198754',
                         backgroundColor: '#198754',
-                        fill: false
+                        fill: false,
+                        datalabels: {
+                            display: true,
+                            align: 'end',
+                            anchor: 'end',
+                            formatter: function(value) {
+                                return value.toLocaleString('pl-PL', { 
+                                    minimumFractionDigits: 2, 
+                                    maximumFractionDigits: 2 
+                                }) + ' zł';
+                            }
+                        }
                     }
                 ]
             },
@@ -100,6 +154,21 @@ class LoanCharts {
                     title: {
                         display: true,
                         text: 'Suma spłat w czasie'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                label += context.raw.toLocaleString('pl-PL', { 
+                                    minimumFractionDigits: 2, 
+                                    maximumFractionDigits: 2 
+                                }) + ' zł';
+                                return label;
+                            }
+                        }
                     }
                 },
                 scales: {
@@ -113,6 +182,10 @@ class LoanCharts {
                             }
                         }
                     }
+                },
+                animation: {
+                    duration: 1000, // Subtle animation
+                    easing: 'easeInOutQuad'
                 }
             }
         });

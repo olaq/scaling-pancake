@@ -36,9 +36,23 @@
         canvas {
             width: 100% !important;
         }
+        .day-theme {
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+        .night-theme {
+            background-color: #212529;
+            color: #f8f9fa;
+        }
+        .day-theme .calculator-container {
+            background-color: white;
+        }
+        .night-theme .calculator-container {
+            background-color: #343a40;
+        }
     </style>
 </head>
-<body>
+<body class="day-theme">
     <div class="calculator-container">
         <h2 class="mb-4">Harmonogram Spłaty Kredytu</h2>
         
@@ -100,6 +114,7 @@
         </div>
 
         <button class="btn btn-primary mt-3 mb-4" onclick="loanUI.generateSchedule()">Oblicz</button>
+        <button class="btn btn-secondary mt-3 mb-4" onclick="loanUI.toggleTheme()">Przełącz tryb dnia/nocy</button>
 
         <div id="summary" class="alert alert-info mb-4" style="display: none;">
             <div class="row">
