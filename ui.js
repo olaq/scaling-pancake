@@ -313,6 +313,7 @@ class LoanUI {
         const newTheme = currentTheme === 'day' ? 'night' : 'day';
         this.applyTheme(newTheme);
         localStorage.setItem('theme', newTheme);
+        this.updateThemeIcon(newTheme);
     }
 
     applyTheme(theme) {
@@ -322,6 +323,17 @@ class LoanUI {
         } else {
             document.body.classList.remove('night-theme');
             document.body.classList.add('day-theme');
+        }
+    }
+
+    updateThemeIcon(theme) {
+        const themeSwitch = document.querySelector('.theme-switch i');
+        if (theme === 'night') {
+            themeSwitch.classList.remove('fa-sun');
+            themeSwitch.classList.add('fa-moon');
+        } else {
+            themeSwitch.classList.remove('fa-moon');
+            themeSwitch.classList.add('fa-sun');
         }
     }
 }
