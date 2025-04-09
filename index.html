@@ -50,9 +50,17 @@
         .night-theme .calculator-container {
             background-color: #343a40;
         }
+        .theme-switch {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
     </style>
 </head>
 <body class="day-theme">
+    <div class="theme-switch">
+        <button class="btn btn-secondary" onclick="loanUI.toggleTheme()">Przełącz tryb dnia/nocy</button>
+    </div>
     <div class="calculator-container">
         <h2 class="mb-4">Harmonogram Spłaty Kredytu</h2>
         
