@@ -36,9 +36,33 @@
         canvas {
             width: 100% !important;
         }
+        .day-theme {
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+        .night-theme {
+            background-color: #212529;
+            color: #f8f9fa;
+        }
+        .day-theme .calculator-container {
+            background-color: white;
+        }
+        .night-theme .calculator-container {
+            background-color: #343a40;
+        }
+        .theme-switch {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
     </style>
 </head>
-<body>
+<body class="day-theme">
+    <div class="theme-switch">
+        <button class="btn btn-secondary" onclick="loanUI.toggleTheme()">
+            <img src="sun-icon.png" alt="Day Mode" id="themeIcon">
+        </button>
+    </div>
     <div class="calculator-container">
         <h2 class="mb-4">Harmonogram Spłaty Kredytu</h2>
         

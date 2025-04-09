@@ -3,11 +3,17 @@ class LoanUI {
         this.calculator = calculator;
         this.charts = charts;
         this.initializeDates();
+        this.initializeTheme();
     }
 
     initializeDates() {
         this.setDefaultStartDate();
         this.setDefaultEarlyPaymentDate();
+    }
+
+    initializeTheme() {
+        const currentTheme = localStorage.getItem('theme') || 'day';
+        this.applyTheme(currentTheme);
     }
 
     setDefaultStartDate() {
@@ -300,6 +306,23 @@ class LoanUI {
 
         html += '</tbody></table>';
         document.getElementById(tableId).innerHTML = html;
+    }
+
+    toggleTheme() {
+        const currentTheme = document.body.classList.contains('day-theme') ? 'day' : 'night';
+        const newTheme = currentTheme === 'day' ? 'night' : 'day';
+        this.applyTheme(newTheme);
+        localStorage.setItem('theme', newTheme);
+    }
+
+    applyTheme(theme) {
+        if (theme === 'night') {
+            document.body.classList.remove('day-theme');
+            document.body.classList.add('night-theme');
+        } else {
+            document.body.classList.remove('night-theme');
+            document.body.classList.add('day-theme');
+        }
     }
 }
 
